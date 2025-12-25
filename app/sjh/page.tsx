@@ -72,7 +72,9 @@ const CountrySelector = memo(({ isOpen, onClose, onSelect, currentCountry }: Cou
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');
   const [page, setPage] = useState(0);
+  const [isPaginating, setIsPaginating] = useState(false);
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
   const ITEMS_PER_PAGE = 50;
 
   useEffect(() => {
@@ -107,6 +109,16 @@ const CountrySelector = memo(({ isOpen, onClose, onSelect, currentCountry }: Cou
     }
     return () => { document.body.style.overflow = ''; };
   }, [isOpen]);
+
+  useEffect(() => {
+    if (scrollContainerRef.current) {
+      scrollContainerRef.current.scrollTop = 0;
+      if (isPaginating) {
+        const timer = setTimeout(() => setIsPaginating(false), 300);
+        return () => clearTimeout(timer);
+      }
+    }
+  }, [page, isPaginating]);
 
   if (!isOpen) return null;
 
@@ -154,21 +166,23 @@ const CountrySelector = memo(({ isOpen, onClose, onSelect, currentCountry }: Cou
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-4 pb-safe">
+        <div ref={scrollContainerRef} className="flex-1 overflow-y-auto px-4 pb-safe">
           <div className="space-y-2">
             {paginatedCountries.map((country) => (
               <button
                 key={country.id}
                 onClick={() => {
+                  if (isPaginating) return;
                   haptic(30);
                   onSelect(country);
                   onClose();
                 }}
+                disabled={isPaginating}
                 className={`w-full flex items-center justify-between p-4 rounded-[16px] transition-all duration-200 active:scale-[0.98] touch-manipulation border ${
                   currentCountry?.id === country.id
                     ? 'bg-white/10 border-white/20 shadow-lg'
                     : 'bg-black/30 border-white/10 active:bg-white/15'
-                }`}
+                } ${isPaginating ? 'pointer-events-none opacity-60' : ''}`}
               >
                 <div className="flex items-center gap-3 flex-1 min-w-0">
                   <CountryFlag countryCode={country.id} className="w-12 h-9 shrink-0" />
@@ -191,8 +205,16 @@ const CountrySelector = memo(({ isOpen, onClose, onSelect, currentCountry }: Cou
           {totalPages > 1 && (
             <div className="flex items-center justify-center gap-2 py-6">
               <button
-                onClick={() => { haptic(20); setPage(p => Math.max(0, p - 1)); }}
-                disabled={page === 0}
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  if (page > 0 && !isPaginating) {
+                    haptic(20);
+                    setIsPaginating(true);
+                    setPage(p => Math.max(0, p - 1));
+                  }
+                }}
+                disabled={page === 0 || isPaginating}
                 className="px-4 py-2 bg-black/30 border border-white/20 rounded-[12px] text-white text-[14px] font-medium disabled:opacity-30 active:scale-95 transition-all touch-manipulation"
               >
                 上一页
@@ -201,8 +223,16 @@ const CountrySelector = memo(({ isOpen, onClose, onSelect, currentCountry }: Cou
                 {page + 1} / {totalPages}
               </span>
               <button
-                onClick={() => { haptic(20); setPage(p => Math.min(totalPages - 1, p + 1)); }}
-                disabled={page >= totalPages - 1}
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  if (page < totalPages - 1 && !isPaginating) {
+                    haptic(20);
+                    setIsPaginating(true);
+                    setPage(p => Math.min(totalPages - 1, p + 1));
+                  }
+                }}
+                disabled={page >= totalPages - 1 || isPaginating}
                 className="px-4 py-2 bg-black/30 border border-white/20 rounded-[12px] text-white text-[14px] font-medium disabled:opacity-30 active:scale-95 transition-all touch-manipulation"
               >
                 下一页
